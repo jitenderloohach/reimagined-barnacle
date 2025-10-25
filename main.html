@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Text to QR Code</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load qrcode.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex justify-center py-10 px-4">
+
+    <div class="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-lg text-center">
+        
+        <h1 class="text-2xl sm:text-3xl font-bold mb-6">Multi-Text to QR Code</h1>
+        
+        <p class="text-gray-400 mb-6">Enter text in one or more fields. A new field (up to 10) will appear when you click the last one.</p>
+        
+        <!-- Container for dynamic input fields -->
+        <div id="input-container" class="space-y-3 mb-4">
+            <!-- First input field -->
+            <div class="flex items-center space-x-2 input-group">
+                <input 
+                    type="text" 
+                    placeholder="Enter text or URL here..."
+                    class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <!-- Remove button -->
+                <button class="remove-btn p-2 text-red-500 hover:text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <!-- Second input field -->
+            <div class="flex items-center space-x-2 input-group">
+                <input 
+                    type="text" 
+                    placeholder="Enter text or URL here..."
+                    class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <!-- Remove button -->
+                <button class="remove-btn p-2 text-red-500 hover:text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Generate Button -->
+        <button 
+            id="generate-btn"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg mt-6 transition-colors duration-200"
+        >
+            Generate All QR Codes
+        </button>
+        
+        <!-- Container where the QR codes will be rendered -->
+        <div id="qrcode-container" class="mt-8 flex flex-col items-center gap-6">
+            <!-- Generated QR codes will appear here -->
+        </div>
+
+    </div>
+
+    <script>
+        const generateBtn = document.getElementById('generate-btn');
+        const inputContainer = document.getElementById('input-container');
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        
+        const MAX_INPUTS = 10;
+
+        // This function is called when the *last* input is focused
+        function handleLastInputFocus(event) {
+            // Remove this listener from the focused element
+            event.target.removeEventListener('focus', handleLastInputFocus);
+            
+            // Check limit
+            if (inputContainer.children.length >= MAX_INPUTS) {
+                return;
+            }
+
+            // Create new input group
+            const inputGroup = document.createElement('div');
+            inputGroup.className = "flex items-center space-x-2 input-group";
+            
+            inputGroup.innerHTML = `
+                <input 
+                    type="text" 
+                    placeholder="Enter text or URL here..."
+                    class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <button class="remove-btn p-2 text-red-500 hover:text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            `;
+            
+            inputContainer.appendChild(inputGroup);
+
+            // Re-run the main listener setup to attach new listeners
+            updateInputListeners();
+        }
+
+        // This function manages all input/button listeners
+        function updateInputListeners() {
+            const inputGroups = inputContainer.querySelectorAll('.input-group');
+            const inputs = inputContainer.querySelectorAll('input');
+
+            // 1. Manage remove buttons
+            inputGroups.forEach((group) => {
+                const button = group.querySelector('.remove-btn');
+                
+                // Clone/replace to remove any old listeners and prevent duplicates
+                const newButton = button.cloneNode(true);
+                button.parentNode.replaceChild(newButton, button);
+                
+                // Add click listener to the new button
+                newButton.addEventListener('click', () => {
+                    if (inputContainer.children.length > 1) {
+                        group.remove();
+                        updateInputListeners(); // Re-run listeners after removal
+                    }
+                });
+
+                // Style/disable if it's the only one left
+                if (inputGroups.length === 1) {
+                    newButton.disabled = true;
+                    newButton.classList.remove('text-red-500', 'hover:text-red-400');
+                    newButton.classList.add('text-gray-400');
+                } else {
+                    newButton.disabled = false;
+                    newButton.classList.add('text-red-500', 'hover:text-red-400');
+                    newButton.classList.remove('text-gray-400');
+                }
+            });
+
+            // 2. Manage focus listener for auto-add
+            inputs.forEach((input, index) => {
+                // Remove any old focus listener (if it exists)
+                if (input._focusHandler) {
+                    input.removeEventListener('focus', input._focusHandler);
+                    input._focusHandler = null;
+                }
+                
+                // Add listener ONLY to the last input, if limit not reached
+                if (index === inputs.length - 1 && inputs.length < MAX_INPUTS) {
+                    input._focusHandler = handleLastInputFocus; // Store a reference
+                    input.addEventListener('focus', input._focusHandler);
+                }
+            });
+        }
+
+        // Function to generate all QR codes (no changes needed here)
+        function generateQRCodes() {
+            // ... (rest of the function is identical to the previous version) ...
+            
+            // Clear previous QR codes
+            qrcodeContainer.innerHTML = '';
+            
+            const inputs = inputContainer.querySelectorAll('input');
+            let generatedCount = 0;
+
+            inputs.forEach((input, index) => {
+                const text = input.value.trim();
+                
+                if (text) {
+                    generatedCount++;
+
+                    // 1. Create a wrapper for this QR code item
+                    const itemWrapper = document.createElement('div');
+                    itemWrapper.className = "bg-gray-700 p-4 rounded-lg w-full flex flex-col items-center gap-3";
+
+                    // 2. Add the original text
+                    const textLabel = document.createElement('p');
+                    textLabel.className = "text-gray-300 text-sm break-all";
+                    textLabel.textContent = `Text: "${text}"`;
+                    itemWrapper.appendChild(textLabel);
+
+                    // 3. Create the div for the QR code
+                    const qrElement = document.createElement('div');
+                    qrElement.className = "bg-white p-4 rounded-lg inline-block";
+                    itemWrapper.appendChild(qrElement);
+
+                    // 4. Create the download link (styled as a button)
+                    const downloadLink = document.createElement('a');
+                    downloadLink.className = "w-full max-w-xs bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mt-2 transition-colors duration-200 text-center cursor-pointer";
+                    downloadLink.textContent = "Download PNG";
+                    downloadLink.download = `qrcode_${index + 1}.png`;
+                    itemWrapper.appendChild(downloadLink);
+
+                    // 5. Append the whole item to the main container
+                    qrcodeContainer.appendChild(itemWrapper);
+
+                    // 6. Generate the QR code
+                    new QRCode(qrElement, {
+                        text: text,
+                        width: 200, // Slightly smaller for multiple items
+                        height: 200,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+
+                    // 7. Add click listener to the download link
+                    setTimeout(() => {
+                        const qrCanvas = qrElement.querySelector('canvas');
+                        const qrImg = qrElement.querySelector('img');
+                        
+                        let dataUrl = '';
+                        if (qrCanvas) {
+                            dataUrl = qrCanvas.toDataURL('image/png');
+                        } else if (qrImg) {
+                            dataUrl = qrImg.src;
+                        }
+
+                        if (dataUrl) {
+                            downloadLink.href = dataUrl;
+                        } else {
+                            downloadLink.textContent = "Download failed";
+                            downloadLink.classList.add('opacity-50', 'cursor-not-allowed');
+                        }
+                    }, 100);
+                }
+            });
+
+            if (generatedCount === 0) {
+                qrcodeContainer.innerHTML = '<p class="text-red-400">Please enter some text in at least one field.</p>';
+            }
+        }
+
+        // Event Listeners
+        generateBtn.addEventListener('click', generateQRCodes);
+        
+        // Run the listener setup on page load
+        document.addEventListener('DOMContentLoaded', updateInputListeners);
+
+    </script>
+</body>
+</html>
+
